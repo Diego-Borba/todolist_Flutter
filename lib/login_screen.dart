@@ -126,10 +126,8 @@ class _LoginScreenState extends State<LoginScreen> {
           final responseData = jsonDecode(response.body);
           final message = responseData['message'];
 
-          // Extrair o token
           final token = message.split('Bearer ').last.trim();
 
-          // Armazenar o token no SharedPreferences
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setString('auth_token', token);
 
