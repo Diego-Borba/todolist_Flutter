@@ -27,7 +27,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
     print('Token de autenticação carregado: $_authToken');
     if (_authToken != null) {
-      _fetchTasks();
+      await _fetchTasks();
     } else {
       _showSnackBar(
           'Token de autenticação não encontrado. Faça login novamente.');
@@ -36,38 +36,50 @@ class _TaskListScreenState extends State<TaskListScreen> {
   }
 
   Future<void> _fetchTasks() async {
-    final url = Uri.parse('http://10.0.2.2:8080/todo');
-    final headers = {
-      'Authorization': 'Bearer $_authToken',
-    };
-
     if (_authToken == null) {
       _showSnackBar('Token de autenticação ausente.');
       _navigateToLogin();
       return;
     }
 
+    final url = Uri.parse('http://10.0.2.2:8080/todo');
+    final headers = {
+      'Authorization': 'Bearer $_authToken',
+    };
+
     try {
       final response =
           await http.get(url, headers: headers).timeout(Duration(seconds: 10));
 
-      if (mounted) {
-        if (response.statusCode == 200) {
-          final List<dynamic> data = jsonDecode(response.body);
-          setState(() {
-            tasks = data.map((taskData) => Task.fromJson(taskData)).toList();
-          });
-        } else {
-          print('Error response: ${response.body}');
-          _showSnackBar('Erro ao carregar tarefas: ${response.statusCode}');
-          if (response.statusCode == 401 || response.statusCode == 403) {
-            _navigateToLogin();
-          }
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          tasks = data.map((taskData) => Task.fromJson(taskData)).toList();
+        });
+      } else {
+        print('Error response: ${response.body}');
+        _showSnackBar('Erro ao carregar tarefas: ${response.statusCode}');
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          _navigateToLogin();
         }
       }
     } catch (e) {
       _showSnackBar('Erro de conexão: $e');
     }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _navigateToLogin() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(),
+      ),
+    );
   }
 
   Future<void> _createTask(String name, String description, DateTime? startDate,
@@ -178,16 +190,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final GoogleSignIn googleSignIn = GoogleSignIn();
     await googleSignIn.signOut();
     _navigateToLogin();
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _navigateToLogin() {
-    Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => LoginScreen()));
   }
 
   @override

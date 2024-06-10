@@ -95,6 +95,8 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response.session!.accessToken);
         _navigateToTaskListScreen();
+      } else {
+        throw 'Erro ao fazer login com Google.';
       }
     } catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
