@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
 import 'task_list_screen.dart';
 import 'register_screen.dart';
+import 'profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -94,7 +95,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.session != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response.session!.accessToken);
-        _navigateToTaskListScreen();
+
+        if (context.mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+          );
+        }
       } else {
         throw 'Erro ao fazer login com Google.';
       }
@@ -168,139 +174,144 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         padding: const EdgeInsets.all(30.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_isLoading) CircularProgressIndicator(),
-              if (!_isLoading) ...[
-                TextFormField(
-                  controller: _emailController,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Por favor, digite um e-mail válido';
-                    }
-                    return null;
-                  },
-                  decoration: const InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    hintText: "Email",
-                    hintStyle: TextStyle(
-                      color: Colors.black45,
-                      fontWeight: FontWeight.w400,
-                      fontSize: 16,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(25)),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'Poppins',
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(
-                  height: 20,
-                ),
-                TextFormField(
-                  controller: _passwordController,
-                  autofocus: true,
-                  keyboardType: TextInputType.text,
-                  obscureText: true,
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Você precisa digitar uma senha válida';
-                    }
-                    return null;
-                  },
-                  decoration: const InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    hintText: "Senha",
-                    hintStyle: TextStyle(
-                      color: Colors.black45,
-                      fontWeight: FontWeight.w400,
-                      fontSize: 16,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(25)),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'Poppins',
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(
-                  height: 30,
-                ),
-                ElevatedButton(
-                  onPressed: _signInWithEmail,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.blueAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 30, vertical: 15),
-                  ),
-                  child: const Text(
-                    'Entrar',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _googleSignIn,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.blueAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 30, vertical: 15),
-                  ),
-                  child: const Text(
-                    'Google login',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => RegisterScreen(),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_isLoading)
+                    CircularProgressIndicator()
+                  else ...[
+                    TextFormField(
+                      controller: _emailController,
+                      autofocus: true,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return 'Por favor, digite um e-mail válido';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        hintText: "Email",
+                        hintStyle: TextStyle(
+                          color: Colors.black45,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(25)),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
-                    );
-                  },
-                  child: const Text(
-                    'Cadastre-se',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      decoration: TextDecoration.underline,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontFamily: 'Poppins',
+                        color: Colors.black,
+                      ),
                     ),
-                  ),
-                ),
-              ]
-            ],
+                    const SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: _passwordController,
+                      autofocus: true,
+                      keyboardType: TextInputType.text,
+                      obscureText: true,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return 'Você precisa digitar uma senha válida';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        hintText: "Senha",
+                        hintStyle: TextStyle(
+                          color: Colors.black45,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(25)),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontFamily: 'Poppins',
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 30,
+                    ),
+                    ElevatedButton(
+                      onPressed: _signInWithEmail,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 30, vertical: 15),
+                      ),
+                      child: const Text(
+                        'Entrar',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _googleSignIn,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 30, vertical: 15),
+                      ),
+                      child: const Text(
+                        'Google login',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const RegisterScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Cadastre-se',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ]
+                ],
+              ),
+            ),
           ),
         ),
       ),
