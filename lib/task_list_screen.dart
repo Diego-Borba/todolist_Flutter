@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
-import 'main.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'login_screen.dart';
 
 class TaskListScreen extends StatefulWidget {
   @override
@@ -9,13 +11,187 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-  final List<Task> tasks = [];
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  List<Task> tasks = [];
+  String? _authToken;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToken();
+  }
+
+  Future<void> _loadToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _authToken = prefs.getString('auth_token');
+    });
+    print('Token de autenticação carregado: $_authToken');
+    if (_authToken != null) {
+      _fetchTasks();
+    } else {
+      _showSnackBar(
+          'Token de autenticação não encontrado. Faça login novamente.');
+      _navigateToLogin();
+    }
+  }
+
+  Future<void> _fetchTasks() async {
+    final url = Uri.parse('http://10.0.2.2:8080/todo');
+    final headers = {
+      'Authorization': 'Bearer $_authToken',
+    };
+
+    if (_authToken == null) {
+      _showSnackBar('Token de autenticação ausente.');
+      _navigateToLogin();
+      return;
+    }
+
+    try {
+      final response =
+          await http.get(url, headers: headers).timeout(Duration(seconds: 10));
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          final List<dynamic> data = jsonDecode(response.body);
+          setState(() {
+            tasks = data.map((taskData) => Task.fromJson(taskData)).toList();
+          });
+        } else {
+          print('Error response: ${response.body}');
+          _showSnackBar('Erro ao carregar tarefas: ${response.statusCode}');
+          if (response.statusCode == 401 || response.statusCode == 403) {
+            _navigateToLogin();
+          }
+        }
+      }
+    } catch (e) {
+      _showSnackBar('Erro de conexão: $e');
+    }
+  }
+
+  Future<void> _createTask(String name, String description, DateTime? startDate,
+      DateTime? endDate) async {
+    final url = Uri.parse('http://10.0.2.2:8080/todo');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_authToken',
+    };
+    final body = jsonEncode({
+      'name': name,
+      'description': description,
+      'startDate': startDate?.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+    });
+
+    try {
+      final response = await http
+          .post(url, headers: headers, body: body)
+          .timeout(Duration(seconds: 10));
+
+      if (mounted) {
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          _showSnackBar('Tarefa criada com sucesso!');
+          _fetchTasks(); // Recarrega as tarefas após a criação bem-sucedida
+        } else {
+          print('Error response: ${response.body}');
+          _showSnackBar('Erro ao criar tarefa: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      _showSnackBar('Erro de conexão: $e');
+    }
+  }
+
+  Future<void> _updateTask(String id, String name, String description,
+      DateTime? startDate, DateTime? endDate) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+
+    if (token == null) {
+      _navigateToLogin();
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('http://10.0.2.2:8080/todo'), // URL correta
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'id': id, // Inclui o ID no corpo da requisição
+          'name': name,
+          'description': description,
+          'startDate': startDate?.toIso8601String(),
+          'endDate': endDate?.toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        _showSnackBar('Tarefa atualizada com sucesso.');
+        _fetchTasks();
+      } else if (response.statusCode == 403) {
+        _showSnackBar('Permissão negada. Faça login novamente.');
+        _navigateToLogin();
+      } else if (response.statusCode == 401) {
+        _showSnackBar('Sessão expirada. Faça login novamente.');
+        _navigateToLogin();
+      } else {
+        _showSnackBar('Erro ao atualizar tarefa.');
+      }
+    } catch (e) {
+      _showSnackBar('Erro de conexão: $e');
+    }
+  }
+
+  Future<void> _deleteTask(String id) async {
+    final url = Uri.parse('http://10.0.2.2:8080/todo/$id');
+    final headers = {
+      'Authorization': 'Bearer $_authToken',
+    };
+
+    try {
+      final response = await http
+          .delete(url, headers: headers)
+          .timeout(Duration(seconds: 10));
+
+      if (mounted) {
+        if (response.statusCode == 204 || response.statusCode == 200) {
+          _showSnackBar('Tarefa excluída com sucesso!');
+          _fetchTasks(); // Recarrega as tarefas após a exclusão bem-sucedida
+        } else {
+          print('Error response: ${response.body}');
+          _showSnackBar('Erro ao excluir tarefa: ${response.statusCode}');
+          if (response.statusCode == 500) {
+            _showSnackBar('Erro ao excluir tarefa: Erro interno do servidor.');
+          }
+        }
+      }
+    } catch (e) {
+      _showSnackBar('Erro de conexão: $e');
+    }
+  }
+
+  Future<void> _signOutGoogle() async {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+    await googleSignIn.signOut();
+    _navigateToLogin();
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _navigateToLogin() {
+    Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => LoginScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = supabase.auth.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lista de tarefas'),
@@ -23,13 +199,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
         actions: [
           TextButton(
             onPressed: () async {
-              await _googleSignIn.signOut();
-              await supabase.auth.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              }
+              SharedPreferences prefs = await SharedPreferences.getInstance();
+              await prefs.remove('auth_token');
+              await _signOutGoogle();
+              _navigateToLogin();
             },
             child: const Text(
               'Sair',
@@ -49,16 +222,18 @@ class _TaskListScreenState extends State<TaskListScreen> {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: ListView.builder(
-          itemCount: tasks.length,
-          itemBuilder: (context, index) {
-            return TaskCard(
-              task: tasks[index],
-              onEdit: () => _editTask(index),
-              onDelete: () => _confirmDelete(index),
-            );
-          },
-        ),
+        child: tasks.isEmpty
+            ? Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  return TaskCard(
+                    task: tasks[index],
+                    onEdit: () => _editTask(index),
+                    onDelete: () => _confirmDelete(index),
+                  );
+                },
+              ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addTask(),
@@ -104,6 +279,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
+                      setState(() {});
                     },
                     child: Text(
                       selectedStartDate != null
@@ -122,6 +298,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
+                      setState(() {});
                     },
                     child: Text(
                       selectedEndDate != null
@@ -148,14 +325,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
               final taskName = taskNameController.text;
               final taskDescription = taskDescriptionController.text;
               if (taskName.isNotEmpty) {
-                setState(() {
-                  tasks.add(Task(
-                    name: taskName,
-                    description: taskDescription,
-                    startDate: selectedStartDate,
-                    endDate: selectedEndDate,
-                  ));
-                });
+                _createTask(taskName, taskDescription, selectedStartDate,
+                    selectedEndDate);
               }
               Navigator.pop(context);
             },
@@ -205,6 +376,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
+                      setState(() {});
                     },
                     child: Text(
                       selectedStartDate != null
@@ -223,6 +395,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
+                      setState(() {});
                     },
                     child: Text(
                       selectedEndDate != null
@@ -249,14 +422,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
               final taskName = taskNameController.text;
               final taskDescription = taskDescriptionController.text;
               if (taskName.isNotEmpty) {
-                setState(() {
-                  tasks[index] = Task(
-                    name: taskName,
-                    description: taskDescription,
-                    startDate: selectedStartDate,
-                    endDate: selectedEndDate,
-                  );
-                });
+                _updateTask(task.id, taskName, taskDescription,
+                    selectedStartDate, selectedEndDate);
               }
               Navigator.pop(context);
             },
@@ -270,25 +437,27 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  void _confirmDelete(int index) async {
-    final bool? confirm = await showDialog(
+  void _confirmDelete(int index) {
+    final task = tasks[index];
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Excluir Tarefa'),
-        content: Text(
-          'Você tem certeza que deseja excluir esta tarefa?',
-          style: TextStyle(fontFamily: 'Poppins'),
-        ),
+        content:
+            Text('Tem certeza que deseja excluir a tarefa "${task.name}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancelar',
               style: TextStyle(fontFamily: 'Poppins'),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              _deleteTask(task.id);
+              Navigator.pop(context);
+            },
             child: Text(
               'Excluir',
               style: TextStyle(fontFamily: 'Poppins'),
@@ -297,27 +466,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ],
       ),
     );
-
-    if (confirm == true) {
-      setState(() {
-        tasks.removeAt(index);
-      });
-    }
   }
-}
-
-class Task {
-  final String name;
-  final String description;
-  DateTime? startDate;
-  DateTime? endDate;
-
-  Task({
-    required this.name,
-    required this.description,
-    this.startDate,
-    this.endDate,
-  });
 }
 
 class TaskCard extends StatelessWidget {
@@ -334,57 +483,52 @@ class TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.all(10.0),
-      child: Padding(
-        padding: EdgeInsets.all(10.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      margin: EdgeInsets.all(8.0),
+      child: ListTile(
+        title: Text(task.name, style: TextStyle(fontFamily: 'Poppins')),
+        subtitle:
+            Text(task.description, style: TextStyle(fontFamily: 'Poppins')),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              task.name,
-              style: TextStyle(
-                fontSize: 18.0,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
-              ),
+            IconButton(
+              icon: Icon(Icons.edit),
+              onPressed: onEdit,
             ),
-            SizedBox(height: 10.0),
-            Text(
-              task.description,
-              style: TextStyle(fontFamily: 'Poppins'),
-            ),
-            SizedBox(height: 10.0),
-            Row(
-              children: [
-                Text(
-                  'Início: ${task.startDate != null ? task.startDate!.toLocal().toString().split(' ')[0] : 'Não definido'}',
-                  style: TextStyle(fontFamily: 'Poppins'),
-                ),
-                SizedBox(width: 10.0),
-                Text(
-                  'Fim: ${task.endDate != null ? task.endDate!.toLocal().toString().split(' ')[0] : 'Não definido'}',
-                  style: TextStyle(fontFamily: 'Poppins'),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: onEdit,
-                  color: Colors.blueAccent,
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: onDelete,
-                  color: Colors.redAccent,
-                ),
-              ],
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: onDelete,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class Task {
+  final String id; // Alterado para String
+  final String name;
+  final String description;
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  Task({
+    required this.id,
+    required this.name,
+    required this.description,
+    this.startDate,
+    this.endDate,
+  });
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      id: json['id'], // Agora trata o ID como String
+      name: json['name'],
+      description: json['description'],
+      startDate:
+          json['startDate'] != null ? DateTime.parse(json['startDate']) : null,
+      endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
     );
   }
 }
