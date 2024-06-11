@@ -40,12 +40,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _navigateToTaskListScreen() {
-    FocusScope.of(context).unfocus();
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => TaskListScreen(),
-      ),
-    );
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => TaskListScreen()),
+      );
+    }
   }
 
   @override
@@ -59,14 +58,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
     });
+
     const webClientId =
         '565837037834-vf7vlf3oi96g04k7qjd0u47jh20s31al.apps.googleusercontent.com';
-
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      serverClientId: webClientId,
-    );
+    final GoogleSignIn googleSignIn = GoogleSignIn(serverClientId: webClientId);
 
     try {
+      FocusScope.of(context).unfocus();
+
       await googleSignIn.signOut();
 
       final googleUser = await googleSignIn.signIn();
@@ -96,9 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', response.session!.accessToken);
 
-        if (context.mounted) {
+        if (mounted) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            MaterialPageRoute(builder: (context) => ProfileScreen()),
           );
         }
       } else {
@@ -109,9 +108,11 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text('Erro ao fazer login com Google: $error')),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
